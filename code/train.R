@@ -15,31 +15,49 @@ create_model <- function(){
 } 
 
 # Curri vs Non_curri learning ####
-Empty_NN <- function(counts,threshold=200,curri.learning=TRUE,batch_size=32,epoch=10){
+Empty_NN <- function(counts, threshold=200,curri.learning=TRUE,batch_size=16,epoch=10){
+        if (nrow(counts) < ncol(counts)){
+                stop(paste0("Please transpose counts matrix before running EmptyNN\n",
+                            "  rows are barcodes, columns are genes"))
+        }
         # Calculate total reads ####
         n_counts <- Matrix::rowSums(counts)
         names(n_counts) <- rownames(counts)
         
-        # Remove cells with less than 10 reads ####
-        counts <- counts[which(n_counts > 10), ]
-        n_counts <- n_counts[which(n_counts > 10)]
-        
-        # Keep 5k most frequent genes ####
-        counts_5k <- counts[, names(tail(sort(Matrix::colSums(counts)), 5000))]
+        # Remove cells with less than 10 reads & Keep 5k most frequent genes ####
+        counts_5k <- counts[which(n_counts > 10),names(tail(sort(Matrix::colSums(counts)), 5000))]
         
         # Split barcodes into quantiles by total counts ####
         above <- which(n_counts >= threshold)
-        below <- which(n_counts < threshold)
-        split_into_quantiles <- function(tmp){
-                qs <- seq(0, 1, length = 21)
-                split(names(tmp), cut(tmp, breaks=c(quantile(tmp, probs = qs))))
+        below <- which(n_counts < threshold & n_counts >10)
+        
+        split_into_quantiles <- function(tmp,quantile=20){
+                qs <- seq(0, 1, length = quantile+1)
+                #split(names(tmp), cut(tmp, breaks=c(quantile(tmp, probs = qs))))
+                split(names(tmp), .bincode(tmp, breaks=c(quantile(tmp, probs = qs))))
         }
+        
         top_splits <- split_into_quantiles(n_counts[above])
         top_splits <- top_splits[rev(1:length(top_splits))]
         bottom_splits <- split_into_quantiles(n_counts[below])
+        if (length(top_splits) >= length(bottom_splits)){
+                min.q <- length(bottom_splits)
+                top_splits <- split_into_quantiles(n_counts[above],quantile=min.q)
+                top_splits <- top_splits[rev(1:length(top_splits))]
+        } else {
+                min.q <- length(top_splits)
+                bottom_splits <- split_into_quantiles(n_counts[below],quantile=min.q)
+        }
+        
+        min_samples <- min(unlist(lapply(c(top_splits,bottom_splits),length)))
+        if (batch_size > min_samples){
+                stop(paste0("Batch size is larger than samples in the quantile.\n",
+                            "  Suggested maximum batch size is ",min_samples))
+        }
         
         # Training and Testing
-        test <- c(unlist(top_splits[c(17:20)]),unlist(bottom_splits[c(17:20)]))
+        n <- length(top_splits)
+        test <- c(unlist(top_splits[c((n-3):n)]),unlist(bottom_splits[c((n-3):n)]))
         train  <- setdiff(rownames(counts_5k), test)
         x_train <- data.matrix(counts_5k[train,])
         print(paste0("training sample ",dim(x_train)[1]))
@@ -49,13 +67,14 @@ Empty_NN <- function(counts,threshold=200,curri.learning=TRUE,batch_size=32,epoc
         names(y_train) <- rownames(x_train)
         y_train[intersect(names(n_counts[above]), rownames(x_train))] <- 1
         y_train <- to_categorical(y_train)
-        y_test <- global[test,2]
+        #y_test <- global[test,2]
+        print(paste0("splitting into ",length(top_splits)," quantiles"))
         print(paste0("predicting bcs with total counts from ",min(n_counts[test])," to ",max(n_counts[test])))
 
         if (curri.learning){
                 print("Start curri learning")
                 model_curri <- create_model()
-                curri_accs <- lapply(1:16, function(x){
+                curri_accs <- lapply(1:(n-4), function(x){
                         print(paste0("training quantile",x))
                         training_accs <- unlist(lapply(1:epoch, function(k){
                                 top_barcodes <- sample(top_splits[[x]], batch_size)
@@ -75,9 +94,9 @@ Empty_NN <- function(counts,threshold=200,curri.learning=TRUE,batch_size=32,epoc
                 y_test_pred <- model_curri %>% predict(x_test)
                 y_test_pred <- y_test_pred[,2]
                 names(y_test_pred) <- test
-                tl <- unclass(table(y_test_pred > 0.5, y_test))
-                testing_acc <- sum(diag(tl))/sum(tl)
-                print(paste0("testing accuracy: ",testing_acc))
+                #tl <- unclass(table(y_test_pred > 0.5, y_test))
+                #testing_acc <- sum(diag(tl))/sum(tl)
+                #print(paste0("testing accuracy: ",testing_acc))
         }
         else {
                 # Non-curri 
@@ -92,8 +111,28 @@ Empty_NN <- function(counts,threshold=200,curri.learning=TRUE,batch_size=32,epoc
                         validation_split = 0.1
                 )
                 y_test_pred <- model_non_curri %>% predict(x_test)
-                tl <- unclass(table(y_test_pred[,2] > 0.5, y_test))
-                testing_acc <- sum(diag(tl))/sum(tl) 
+                y_test_pred <- y_test_pred[,2]
+                names(y_test_pred) <- test
+                #tl <- unclass(table(y_test_pred[,2] > 0.5, y_test))
+                #testing_acc <- sum(diag(tl))/sum(tl) 
         }
-        return(list(testing_acc,y_test_pred))
+        #return(list(testing_acc,y_test_pred))
+        max <- max(n_counts[test])
+        nn_bcs <- c(names(y_test_pred[y_test_pred>0.5]), names(n_counts[n_counts>max]))
+        nn.keep <- rownames(counts) %in% nn_bcs
+        return(list("n_counts"=n_counts,"preds"=y_test_pred,"nn.keep"=nn.keep))
+}
+
+runSeurat <- function(counts,gene.use,resolution){
+        tmp <- CreateSeuratObject(counts = counts)
+        tmp <- tmp[-grep("^RPS", rownames(tmp)),]
+        tmp <- tmp[-grep("^RPL", rownames(tmp)),]
+        tmp <- NormalizeData(tmp)
+        gene.use <- gene.use[gene.use %in% rownames(tmp)]
+        tmp <- ScaleData(tmp, features = gene.use)
+        tmp <- RunPCA(tmp,features=gene.use)
+        tmp <- FindNeighbors(tmp, dims = 1:10)
+        tmp <- FindClusters(tmp, resolution = resolution)
+        tmp <- RunTSNE(tmp, dims = 1:10,check_duplicates = FALSE)
+        return(tmp)
 }
