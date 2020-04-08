@@ -15,7 +15,8 @@ create_model <- function(){
 } 
 
 # Curri vs Non_curri learning ####
-Empty_NN <- function(counts, threshold=200,curri.learning=TRUE,batch_size=16,epoch=10){
+Empty_NN <- function(counts,expected=NA,threshold=NA,n.quantile=20,k=1,
+                     curri.learning=TRUE,batch_size=16,epoch=10){
         if (nrow(counts) < ncol(counts)){
                 stop(paste0("Please transpose counts matrix before running EmptyNN\n",
                             "  rows are barcodes, columns are genes"))
@@ -24,6 +25,18 @@ Empty_NN <- function(counts, threshold=200,curri.learning=TRUE,batch_size=16,epo
         n_counts <- Matrix::rowSums(counts)
         names(n_counts) <- rownames(counts)
         
+        if (is.na(expected) & is.na(threshold)){
+                stop("Please input expected no. of cells / threshold")
+        }
+        # Calculate cutoff of Cell Ranger 2.0 ####
+        if (is.na(threshold)){
+                o <- order(n_counts, decreasing = TRUE)
+                top <- n_counts[head(o, n = expected)]
+                threshold = round(quantile(top, 0.99)*0.1,0)
+        } else {threshold = threshold}
+        print(paste0("threshold is ",threshold))
+        assign("threshold",threshold, envir = .GlobalEnv) 
+        
         # Remove cells with less than 10 reads & Keep 5k most frequent genes ####
         counts_5k <- counts[which(n_counts > 10),names(tail(sort(Matrix::colSums(counts)), 5000))]
         
@@ -31,7 +44,7 @@ Empty_NN <- function(counts, threshold=200,curri.learning=TRUE,batch_size=16,epo
         above <- which(n_counts >= threshold)
         below <- which(n_counts < threshold & n_counts >10)
         
-        split_into_quantiles <- function(tmp,quantile=20){
+        split_into_quantiles <- function(tmp,quantile=n.quantile){
                 qs <- seq(0, 1, length = quantile+1)
                 #split(names(tmp), cut(tmp, breaks=c(quantile(tmp, probs = qs))))
                 split(names(tmp), .bincode(tmp, breaks=c(quantile(tmp, probs = qs))))
@@ -57,7 +70,7 @@ Empty_NN <- function(counts, threshold=200,curri.learning=TRUE,batch_size=16,epo
         
         # Training and Testing
         n <- length(top_splits)
-        test <- c(unlist(top_splits[c((n-3):n)]),unlist(bottom_splits[c((n-3):n)]))
+        test <- c(unlist(top_splits[c((n-k+1):n)]),unlist(bottom_splits[c((n-k+1):n)]))
         train  <- setdiff(rownames(counts_5k), test)
         x_train <- data.matrix(counts_5k[train,])
         print(paste0("training sample ",dim(x_train)[1]))
@@ -74,7 +87,7 @@ Empty_NN <- function(counts, threshold=200,curri.learning=TRUE,batch_size=16,epo
         if (curri.learning){
                 print("Start curri learning")
                 model_curri <- create_model()
-                curri_accs <- lapply(1:(n-4), function(x){
+                curri_accs <- lapply(1:(n-k), function(x){
                         print(paste0("training quantile",x))
                         training_accs <- unlist(lapply(1:epoch, function(k){
                                 top_barcodes <- sample(top_splits[[x]], batch_size)
@@ -136,3 +149,7 @@ runSeurat <- function(counts,gene.use,resolution){
         tmp <- RunTSNE(tmp, dims = 1:10,check_duplicates = FALSE)
         return(tmp)
 }
+
+
+
+

@@ -11,10 +11,12 @@ counts <- Read10X_h5("10x/pbmc_10k_raw.h5",use.names = TRUE, unique.features = T
 
 # Empty_NN ####
 source("train.R")
+# Input user-defined threshold
 res <- Empty_NN(t(counts),batch_size = 64,threshold = 500)
+# Input expected no. of cells
+res <- Empty_NN(t(counts),batch_size = 64,expected = 10000)
 
-# Recovered barcodes with total counts below threshold(500) ####
-threshold=500
+# Recovered barcodes with total counts below threshold ####
 preds <- intersect(names(res$preds[res$preds>0.5]),
                    names(res$n_counts[res$n_counts<threshold]))
 # Find highly variable genes

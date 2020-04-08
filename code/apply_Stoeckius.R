@@ -23,7 +23,7 @@ global <- global[rownames(global) %in% rownames(counts),]
 
 # Empty_NN ####
 source(paste0(path,"train.R"))
-res <- Empty_NN(counts,batch_size = 64)
+res <- Empty_NN(counts,batch_size = 64,threshold=200,k=4)
 
 # Boxplot showing prediction accuracies ####
 bcs <- intersect(names(res$n_counts[res$n_counts >100 & res$n_counts <400]),names(res$preds))
@@ -34,7 +34,7 @@ acc <- sum(diag(t))/sum(t)
 ggplot(nn.res, aes(preds>0.5, ..count..)) + geom_bar(aes(fill = label), position = "dodge") +
         ylab("no. of cells")+ylim(0,3600)+
         labs(title = "Empty_NN prediction",
-        subtitle = paste0("total_counts:from 100 to 400, accuracy: ",round(acc,3))
+        subtitle = paste0("total_counts:from 100 to 400, accuracy: ",round(acc,3)))
 
 
 
