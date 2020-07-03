@@ -1,49 +1,71 @@
-path = "/Users/yanfangfang/Downloads/Empty_Droplet/data/50,000/"
+path = "/Users/yanfangfang/Downloads/Empty_Droplet/"
 # Load R libs ####
 library(Seurat)
 library(Matrix)
 library(keras)
+library(dplyr)
 library(ggplot2)
 library(patchwork)
+library(pheatmap)
+library(DropletUtils)
 
-# Load count table ####
-counts <- readMM(file = paste0(path,"Stoeckius_RNA.mtx"))
-barcodes <- read.csv(paste0(path,"Stoeckius_barcodes.txt"))[,2]
-genes <- read.csv(paste0(path,"Stoeckius_genes.txt"))[,2]
-rownames(counts) <- barcodes
-colnames(counts) <- genes
-# keep barcodes that have HTO counts
-jointbcs <- read.csv(paste0(path,"joint_barcodes.txt",header=F))[,1]
-counts <- counts[rownames(counts) %in% jointbcs,]
+# Load count and label ####
+# The file can be downloaded from 
+# https://drive.google.com/file/d/12y0fW_Y9OdhBLns_2gpjo2Xq25c4qnGY/view?usp=sharing
+# It contains two objects: Stoeckius.counts, label
+load(paste0(path, "data/Stoeckius/Stoeckius.RData"))
 
-# Load classification.global ####
-global <- read.delim(paste0(path,"classification.global.txt",sep="\t",header=T))
-global$label <- ifelse(global$classification.global=="Negative","negative","singlet")
-global <- global[rownames(global) %in% rownames(counts),]
+# Negative Learning ####
+source(paste0(path,"code/0629/Negative_learning.R"))
+neg.res <- neg_learning(Stoeckius.counts,neg.threshold=50,n_splits=5,iteration=5,
+                        verbose=TRUE,training_verbose = 0)
 
-# Empty_NN ####
-source(paste0(path,"train.R"))
-res <- Empty_NN(counts,batch_size = 64,threshold=200,k=4)
+# Curriculum Learning EmptyNN ####
+source(paste0(path,"code/0629/Curri_NN.R"))
+curri.res <- Empty_NN(Stoeckius.counts,batch_size = 64,threshold=200,k=4)
 
-# Boxplot showing prediction accuracies ####
-bcs <- intersect(names(res$n_counts[res$n_counts >100 & res$n_counts <400]),names(res$preds))
-nn.res <- global[bcs,2,drop=F]
-nn.res$preds <- res$preds[bcs]
-t <- table(nn.res$preds>0.5,nn.res$label)
-acc <- sum(diag(t))/sum(t)
-ggplot(nn.res, aes(preds>0.5, ..count..)) + geom_bar(aes(fill = label), position = "dodge") +
-        ylab("no. of cells")+ylim(0,3600)+
-        labs(title = "Empty_NN prediction",
-        subtitle = paste0("total_counts:from 100 to 400, accuracy: ",round(acc,3)))
+# EmptyDrops ####
+e.out <- emptyDrops(t(Stoeckius.counts))
+e.keep <- e.out$FDR <= 0.001
 
+# save(neg.res,curri.res,e.keep,file="stoeckius_result.RData")
+load(file="stoeckius_result.RData")
 
-
-
-
-
-
-
-
-
-
+# Benchmark Analysis ####
+# accuracy in each quantile
+acc_quantile <- function(counts,keep.vector,model){
+        n_counts <- Matrix::rowSums(counts)
+        res <- data.frame("predictions"=keep.vector,"counts"=n_counts)
+        idx <- match(rownames(res),rownames(label))
+        res$label <- label[idx,2]
+        res <- res[which(res$counts>10),]
+        res$quantile <- ntile(-res$counts, 20)
+        res$quantile <- paste0("q_",res$quantile)
+        level_order <- c(paste0("q_",seq(1,20)))
+        df <- data.frame("quantile"=level_order,"balanced_accuracy"=0)
+        for (i in seq(1,nrow(df))){
+                tmp <- res[res$quantile==df[i,1],]
+                TP <- nrow(tmp[(tmp$predictions=="TRUE" & tmp$label=="singlet"),])
+                TN <- nrow(tmp[(tmp$predictions=="FALSE" & tmp$label=="negative"),])
+                FP <- nrow(tmp[(tmp$predictions=="TRUE" & tmp$label=="negative"),])
+                FN <- nrow(tmp[(tmp$predictions=="FALSE" & tmp$label=="singlet"),])
+                if (TP+FN==0){
+                        sensitivity = 0
+                } else {sensitivity <- TP / (TP + FN)}
+                if (TN + FP==0){
+                        specificity = 0
+                } else {specificity <- TN / (TN + FP)}
+                balanced_accuracy <- (sensitivity + specificity) / 2
+                df[i,2] <- balanced_accuracy
+        }
+        p <- ggplot(data=df, aes(x=factor(quantile,level = level_order), y=balanced_accuracy, fill=quantile)) +
+                geom_bar(stat="identity",show.legend = FALSE)+ylim(0,1)+
+                xlab("quantile")+ggtitle(paste0("Stoeckius et al ", model))
+        return(p)
+}
+neg.plot <- acc_quantile(Stoeckius.counts,neg.res$nn.keep,model="negative learning")
+curri.plot <- acc_quantile(Stoeckius.counts,curri.res$nn.keep,model="curriculum learning")
+e.keep[which(is.na(e.keep))] <- "FALSE"
+e.plot <- acc_quantile(Stoeckius.counts,e.keep,model="EmptyDrops")
+acc_in_quantile <- neg.plot|curri.plot|e.plot
 
