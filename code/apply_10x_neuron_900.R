@@ -1,4 +1,4 @@
-path = "/Users/yanfangfang/Downloads/Empty_Droplet/"
+path = "./Github/EmptyNN/"
 # Load R libs ####
 library(Seurat)
 library(Matrix)
@@ -8,16 +8,16 @@ library(DropletUtils)
 
 # Download dataset from website ####
 website <- "http://cf.10xgenomics.com/samples/cell-exp/2.1.0/neurons_900/neurons_900_raw_gene_bc_matrices_h5.h5"
-download.file(website,destfile="10x/neurons_900_raw_gene_bc_matrices_h5.h5")
-counts <- Read10X_h5("10x/neurons_900_raw_gene_bc_matrices_h5.h5", 
+download.file(website,destfile="data/neurons_900_raw_gene_bc_matrices_h5.h5")
+counts <- Read10X_h5("data/neurons_900_raw_gene_bc_matrices_h5.h5", 
                      use.names = TRUE, unique.features = TRUE)
 
 # Negative learning ####
-source(paste0(path,"code/0629/Negative_learning.R"))
+source(paste0(path,"code/Negative_learning.R"))
 neg.res <- neg_learning(t(counts),neg.threshold=100,n_splits=5,iteration=5,verbose=TRUE)
 
 # Curriculum Learning Empty_NN ####
-source(paste0(path,"code/0629/Curri_NN.R"))
+source(paste0(path,"code/Curri_NN.R"))
 # input can be "expected no. of cells (eg.expected=900)" or "user defined threshold (eg.threshold=3000)"
 curri.res <- Empty_NN(t(counts),batch_size = 32,expected=900,curri.learning=TRUE)
 
