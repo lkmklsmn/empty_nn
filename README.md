@@ -1,9 +1,28 @@
 # EmptyNN
-**EmptyNN** is a **curriculum learning** based neural network method for **recovering lost cells** and improving cell type identification from droplet-based single cell RNA sequencing
+**EmptyNN** is a **Positive-unlabeled (PU) learning** based neural network approach to **remove empty droplets and recover lost cells** from droplet-based single cell RNA sequencing data.
 
-## Download example datasets
+<p align="center"> 
+<img src="Figure1a.PNG">
+</p>
+**Schematic diagram of EmptyNN**
+
+## Installation
+### option 1
 ```
 $ git clone http://github.com/lkmklsmn/emptynn
+$ cd emptynn
+## enter R and install packages
+$ R
+> install.packages("EmptyNN_0.1.0.tar.gz", repos = NULL, type = "source")
+```
+### option 2
+```
+> install.packages("devtools")
+> library(devtools)
+> install_github("lkmklsmn/emptynn")
+```
+## Download example datasets
+```
 $ cd emptynn
 $ Rscript "./code/download.data.R"
 ```
