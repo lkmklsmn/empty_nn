@@ -4,6 +4,7 @@
 <p align="center"> 
 <img src="Figure1a.PNG">
 </p>
+
 **Schematic diagram of EmptyNN**
 
 ## Installation
@@ -13,7 +14,7 @@ $ git clone http://github.com/lkmklsmn/emptynn
 $ cd emptynn
 ## enter R and install packages
 $ R
-> install.packages("EmptyNN_0.1.0.tar.gz", repos = NULL, type = "source")
+> install.packages("EmptyNN_1.0.tar.gz", repos = NULL, type = "source")
 ```
 ### option 2
 ```
