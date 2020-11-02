@@ -1,71 +1,58 @@
-path = "/Users/yanfangfang/Downloads/Empty_Droplet/"
 # Load R libs ####
+library(EmptyNN)
 library(Seurat)
-library(Matrix)
 library(keras)
+library(DropletUtils)
 library(dplyr)
 library(ggplot2)
 library(patchwork)
 library(pheatmap)
-library(DropletUtils)
 
-# Load count and label ####
-# The file can be downloaded from 
+# Load data ####
+# The file can be downloaded from
 # https://drive.google.com/file/d/12y0fW_Y9OdhBLns_2gpjo2Xq25c4qnGY/view?usp=sharing
 # It contains two objects: Stoeckius.counts, label
-load(paste0(path, "data/Stoeckius/Stoeckius.RData"))
+load("./../data/Stoeckius/Stoeckius.RData")
 
-# Negative Learning ####
-source(paste0(path,"code/0629/Negative_learning.R"))
-neg.res <- neg_learning(Stoeckius.counts,neg.threshold=50,n_splits=5,iteration=5,
-                        verbose=TRUE,training_verbose = 0)
+# EmptyNN ####
+nn.res <- emptynn(Stoeckius.counts,threshold=50,k=30,iteration=5)
+nn.keep <- nn.res$nn.keep
 
-# Curriculum Learning EmptyNN ####
-source(paste0(path,"code/0629/Curri_NN.R"))
-curri.res <- Empty_NN(Stoeckius.counts,batch_size = 64,threshold=200,k=4)
+# CellRanger 2.0 ####
+n_counts <- rowSums(Stoeckius.counts)
+ranger.keep <- n_counts>=200
 
 # EmptyDrops ####
 e.out <- emptyDrops(t(Stoeckius.counts))
 e.keep <- e.out$FDR <= 0.001
 
-# save(neg.res,curri.res,e.keep,file="stoeckius_result.RData")
-load(file="stoeckius_result.RData")
+# CellBender ####
+bender <- Read10X_h5("./../data/Stoeckius.CellBender_filtered.h5")
+bender.keep <- rownames(Stoeckius.counts) %in% colnames(bender)
+names(bender.keep) <- rownames(Stoeckius.counts)
 
-# Benchmark Analysis ####
-# accuracy in each quantile
-acc_quantile <- function(counts,keep.vector,model){
-        n_counts <- Matrix::rowSums(counts)
-        res <- data.frame("predictions"=keep.vector,"counts"=n_counts)
-        idx <- match(rownames(res),rownames(label))
-        res$label <- label[idx,2]
-        res <- res[which(res$counts>10),]
-        res$quantile <- ntile(-res$counts, 20)
-        res$quantile <- paste0("q_",res$quantile)
-        level_order <- c(paste0("q_",seq(1,20)))
-        df <- data.frame("quantile"=level_order,"balanced_accuracy"=0)
-        for (i in seq(1,nrow(df))){
-                tmp <- res[res$quantile==df[i,1],]
-                TP <- nrow(tmp[(tmp$predictions=="TRUE" & tmp$label=="singlet"),])
-                TN <- nrow(tmp[(tmp$predictions=="FALSE" & tmp$label=="negative"),])
-                FP <- nrow(tmp[(tmp$predictions=="TRUE" & tmp$label=="negative"),])
-                FN <- nrow(tmp[(tmp$predictions=="FALSE" & tmp$label=="singlet"),])
-                if (TP+FN==0){
-                        sensitivity = 0
-                } else {sensitivity <- TP / (TP + FN)}
-                if (TN + FP==0){
-                        specificity = 0
-                } else {specificity <- TN / (TN + FP)}
-                balanced_accuracy <- (sensitivity + specificity) / 2
-                df[i,2] <- balanced_accuracy
-        }
-        p <- ggplot(data=df, aes(x=factor(quantile,level = level_order), y=balanced_accuracy, fill=quantile)) +
-                geom_bar(stat="identity",show.legend = FALSE)+ylim(0,1)+
-                xlab("quantile")+ggtitle(paste0("Stoeckius et al ", model))
-        return(p)
-}
-neg.plot <- acc_quantile(Stoeckius.counts,neg.res$nn.keep,model="negative learning")
-curri.plot <- acc_quantile(Stoeckius.counts,curri.res$nn.keep,model="curriculum learning")
-e.keep[which(is.na(e.keep))] <- "FALSE"
-e.plot <- acc_quantile(Stoeckius.counts,e.keep,model="EmptyDrops")
-acc_in_quantile <- neg.plot|curri.plot|e.plot
+# Comparison ####
+# Overall ROC curve ####
+library('pROC')
+bcs <- rownames(nn.res$prediction)
+rocobj1 <- roc(label[bcs,2], neg.res.5ite.30splits$prediction[bcs,'mean.crossval'])
+rocobj2 <- roc(label[names(ranger.keep),2], as.numeric(ranger.keep))
+bcs <- rownames(e.out[!is.na(e.out$FDR),])
+rocobj3 <- roc(label[bcs,2], e.out[bcs,'FDR'])
+rocobj4 <- roc(label[names(bender.keep),2], as.numeric(bender.keep))
+ggroc(list("EmptyNN, 0.9473"=rocobj1,
+           "CellRanger 2.0, 0.8688"=rocobj2,
+           "EmptyDrops, 0.7967"=rocobj3,
+           "CellBender, 0.888"=rocobj4),legacy.axes = TRUE) +
+        labs(x = "FPR", y = "TPR")+
+        geom_segment(aes(x = 0, xend = 1, y = 0, yend = 1), color="darkgrey", linetype="dashed")
 
+# tSNE plot ####
+keep <- nn.keep | ranger.keep | (e.keep & !is.na(e.keep)) | bender.keep
+retained <- runSeurat(counts=counts[,keep],genes.use=genes.use,resolution=0.2)
+retained$emptynn <- colnames(retained) %in% colnames(counts)[nn.keep]
+retained$cellranger <- colnames(retained) %in% colnames(counts)[ranger.keep]
+retained$emptydrops <- colnames(retained) %in% colnames(counts)[e.keep & !is.na(e.keep)]
+retained$cellbender <- colnames(retained) %in% colnames(counts)[bender.keep]
+DimPlot(retained, group.by="emptynn",reduction = 'tsne',
+        cols=c('grey','steelblue3'))+ggtitle("EmptyNN")+NoLegend()
