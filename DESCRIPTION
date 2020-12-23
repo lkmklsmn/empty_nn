@@ -2,8 +2,11 @@ Package: EmptyNN
 Type: Package
 Title: Remove empty droplets in scRNA-seq data
 Version: 1.0
-Date: 2020-11-01
+Imports:
+    keras (>= 2.3.0),
+    Matrix
+Date: 2020-12-31
 Author: Fangfang Yan, Lukas M. Simon
-Maintainer: Fangfang Yan <Fangfang.Yan.1@uth.tmc.edu>
+Maintainer: Fangfang Yan <Fangfang.Yan.1@uth.tmc.edu>, Lukas M. Simon <Lukas.Simon@bcm.edu>
 Description: EmptyNN is a Positive-unlabeled (PU) learning based neural network approach to remove empty droplets and recover lost cells from droplet-based single cell RNA sequencing data.
 License: What license is it under?
