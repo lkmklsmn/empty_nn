@@ -1,5 +1,5 @@
 # EmptyNN
-**EmptyNN** is a novel **cell-calling algorithm** based on **Positive-unlabeled (PU) learning** to **remove cell-free droplets and recover lost cells** in droplet-based single cell RNA sequencing data.
+EmptyNN is a novel **cell-calling algorithm** based on **Positive-unlabeled (PU)** learning which **removes cell-free droplets and recovers lost cells** in droplet-based single cell RNA sequencing data.
 
 <p align="center">
 <img src="Figure 1.png">
@@ -14,9 +14,9 @@ To reproduce the analysis and figures presented in our manuscript please see the
 Check out our jupyter notebook (in R environment) tutorial at [*EmptyNN - Cell Hashing Dataset Tutorial*](https://github.com/lkmklsmn/empty_nn/blob/master/Reproducibility/EmptyNN%20-%20Cell%20Hashing%20Dataset%20Tutorial.ipynb).
 
 ## Installation
-EmptyNN is an R package. The required packages include **keras** and **Matrix**.
+EmptyNN is implemented in R and depends on the **keras** and **Matrix** R packages.
 
-### option 1
+### Option 1
 ```
 $ git clone http://github.com/lkmklsmn/emptynn
 $ cd emptynn
@@ -24,12 +24,15 @@ $ cd emptynn
 $ R
 > install.packages("EmptyNN_1.0.tar.gz", repos = NULL, type = "source")
 ```
-### option 2
+### Option 2
 ```
 > install.packages("devtools")
 > library(devtools)
 > install_github("lkmklsmn/emptynn")
 ```
+
+## Usage
+
 ## Input
 1. Raw count expression matrix in mtx or h5 format
 
@@ -42,14 +45,14 @@ $ R
 $ cd emptynn
 $ Rscript "./code/download.data.R"
 ```
-## Usage
+
 ```
 library(EmptyNN)
 # Load data
 counts <- Read10X_h5("./data/example_data.h5", use.names = TRUE, unique.features = TRUE)
 # Run emptynn()
-nn.res <- emptynn(counts,threshold=100,k_folds=10,iteration=10,verbose=TRUE)
+nn.res <- emptynn(counts, threshold = 100, k_folds = 10, iteration = 10, verbose = TRUE)
 # Downstream analysis
-retained <- runSeurat(counts=counts[,nn.res$nn.keep],resolution=0.2)
-DimPlot(retained,reduction = 'tsne')+ggtitle("EmptyNN")+NoLegend()
+retained <- runSeurat(counts = counts[, nn.res$nn.keep], resolution = 0.2)
+DimPlot(retained,reduction = 'tsne') + ggtitle("EmptyNN") + NoLegend()
 ```
