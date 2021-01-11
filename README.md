@@ -34,11 +34,11 @@ $ R
 ## Usage
 
 ## Input
-1. Raw count expression matrix in mtx or h5 format
+1. Raw unfiltered count matrix in mtx or h5 format
 
 ## Output
-1. A boolean vector showing cell-free or cell-containing droplets
-2. Predicted probabilities for each barcode set *U*
+1. A boolean vector showing the predictions for cell-free or cell-containing droplets
+2. Probabilities for each barcode in set *U*
 
 ## Download example datasets
 ```
