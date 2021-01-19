@@ -18,7 +18,7 @@ EmptyNN is implemented in R and depends on the **keras** and **Matrix** R packag
 
 ### Option 1
 ```
-$ git clone http://github.com/lkmklsmn/emptynn
+$ git clone http://github.com/lkmklsmn/empty_nn
 $ cd emptynn
 ## enter R and install packages
 $ R
@@ -28,7 +28,7 @@ $ R
 ```
 > install.packages("devtools")
 > library(devtools)
-> install_github("lkmklsmn/emptynn")
+> install_github("lkmklsmn/empty_nn")
 ```
 
 ## Usage
