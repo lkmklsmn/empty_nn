@@ -8,14 +8,13 @@ output: html_document
 The following code reproduces the analysis in our [EmptyNN manuscript](https://www.biorxiv.org/content/10.1101/2021.01.15.426387v1). The used singe-cell RNA sequencing data is published by Stoeckius et al, which we refer to as "cell hahing dataset" in our manuscript. 
 
 Load libraries
-```{r cars}
-summary(cars)
-# library("EmptyNN")
-# library("Seurat")
-# library("pheatmap")
-# library("ggplot2")
-# # optional
-# library("DropletUtils")
+```{r}
+library("EmptyNN")
+library("Seurat")
+library("pheatmap")
+library("ggplot2")
+# optional
+library("DropletUtils")
 ```
 
 Load raw data and labels for each barcode
