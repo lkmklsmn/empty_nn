@@ -8,28 +8,21 @@ output:
 # EmptyNN - Figure 4
 The following code reproduces the Figure 4 in our [EmptyNN manuscript](https://www.biorxiv.org/content/10.1101/2021.01.15.426387v1).
 
-# Please download datasets and seurat objects before running this analysis
-```{bash}
-cd empty_nn
-sh ./code/download_data.sh
-```
-
-
+# Please download datasets and seurat objects before running this analysis (run download_datasets.sh in terminal)
 # Load libraries
 ```{r}
-setwd("/your/path/to/empty_nn")
 library("Seurat")
 library("Matrix")
 library("ggplot2")
 library("pheatmap")
-load("./data/BlueYellowColormaps_V1.RData")
+load("./../data/BlueYellowColormaps_V1.RData")
 # R version 3.6.3, Seurat_3.2.3, Matrix_1.3-2, ggplot_2_3.3.3, pheatmap_1.0.12 
 ```
 
 ## Load seurat objects containing barcodes retained by EmptyNN or CellRanger 2.0
 ```{r}
-pbmc8k_retained <- readRDS("./data/pbmc8k_retained.rds")
-neuron900_retained <- readRDS("./data/neuron900_retained.rds")
+pbmc8k_retained <- readRDS("./../data/pbmc8k_retained.rds")
+neuron900_retained <- readRDS("./../data/neuron900_retained.rds")
 ```
 
 ## Define functions: runSeurat() and plot_heatmap()
