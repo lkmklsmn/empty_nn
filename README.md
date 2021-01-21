@@ -43,7 +43,7 @@ $ R
 ## Download example datasets
 ```
 $ cd empty_nn
-$ Rscript "./code/download.data.R"
+$ sh ./code/download_data.sh
 ```
 
 ```
