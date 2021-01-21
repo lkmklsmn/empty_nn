@@ -1,0 +1,111 @@
+---
+title: "Figure2"
+output: html_document
+---
+
+# EmptyNN - Figure 2
+
+The following code reproduces the analysis in our [EmptyNN manuscript](https://www.biorxiv.org/content/10.1101/2021.01.15.426387v1). The used singe-cell RNA sequencing data is published by Stoeckius et al, which we refer to as "cell hahing dataset" in our manuscript. 
+
+Load libraries
+```{r cars}
+summary(cars)
+# library("EmptyNN")
+# library("Seurat")
+# library("pheatmap")
+# library("ggplot2")
+# # optional
+# library("DropletUtils")
+```
+
+Load raw data and labels for each barcode
+```{r}
+# load("./data/Cell_hashing_raw.RData")
+```
+
+We apply EmptyNN to do the preprocessing.
+The input is raw count matrix, either in h5 or mtx format. The rows are barcodes and columns are genes.
+The output is a boolean vector showing cell-free droplet (empty droplet) or cell-containing droplet.
+Runtime depends on the dataset to be processed and parameter setting. A higher k_folds or iteration means longer runtime. It takes ~30 mins to run with the default parameters.
+For demonstration purposes, we set parameters to a low number, which takes ~5 mins.
+```{r}
+nn.res <- emptynn(t(counts),threshold=50,k=2,iteration=1)
+nn.keep <- nn.res$nn.keep
+```
+
+Next, we applied other state-of-art methods to benchmark our analysis, including CellRanger 2.0, EmptyDrops, and CellBender.
+```{r}
+# CellRanger 2.0
+n_counts <- colSums(counts)
+ranger.keep <- n_counts>=200
+
+# EmptyDrops
+e.out <- emptyDrops(counts)
+e.keep <- e.out$FDR <= 0.001
+
+# CellBender
+# The processed cell hashing dataset by CellBender can be found at [Google Drive](https://drive.google.com/file/d/1BWvvMEQYfMlaTdYlIUzRVmqP19YW7AP4/view?usp=sharing).
+bender <- Read10X_h5("Stoeckius.CellBender_filtered.h5")
+bender.keep <- colnames(counts) %in% colnames(bender)
+names(bender.keep) <- colnames(counts)
+```
+
+To reproduce the results in the manuscript, we provided the result file used in the manuscript, available at [google drive](https://drive.google.com/file/d/1AXUzQEp1OJmZgLTwTHf1szqD-9nE092v/view?usp=sharing). It include the precessing results of four methods: nn.res, ranger.keep, e.keep, bender.keep.
+```{r}
+load("Stoeckius_result.RData")
+```
+
+Next, we plot the barcode-rank plot and show recovered barcodes with low total counts by EmptyNN.¶
+```{r}
+total_counts <- Matrix::colSums(counts)
+aframe <- data.frame(total_counts, rank = rank(-total_counts), 
+                     emptynn = nn.res$nn.keep)
+twohundred <- unique(aframe$rank[which(aframe$total_counts == 200)])
+fifty <- unique(aframe$rank[which(aframe$total_counts == 50)])
+recovered <- aframe$rank[which(aframe$emptynn & 
+                                       aframe$total_counts < 200 
+                               & aframe$total_counts > 50)]
+global <- ggplot(aframe, aes(rank, total_counts)) +
+        scale_x_continuous(trans='log10') + scale_y_continuous(trans='log10') +
+        geom_point() + theme_bw() +
+        xlab("Sorted barcodes") + ylab("Total counts [log10]") +
+        geom_vline(xintercept = twohundred, color = "dodgerblue", linetype = "dashed") +
+        geom_vline(xintercept = fifty, color = "forestgreen", linetype = "dashed")
+
+local <- ggplot(aframe[which(aframe$total_counts < 210 & aframe$total_counts > 40),], aes(rank, total_counts)) +
+        xlab("Sorted barcodes") + ylab("Total counts [log10]") +
+        geom_vline(xintercept = twohundred, color = "dodgerblue", linetype = "dashed") +
+        geom_vline(xintercept = fifty, color = "forestgreen", linetype = "dashed") +
+        geom_vline(xintercept = recovered, color = "darkred", alpha = 0.5) +
+        geom_point() + theme_bw()
+```
+
+# Figure 2A
+```{r}
+global
+```
+
+# Figure 2B
+```{r}
+local
+```
+
+Next, we show tSNE plot of recovered low-count barcodes.
+The Seurat object of recovered low-count barcodes can be downloaded at [Google Drive](https://drive.google.com/file/d/1IrroxKEkfc6uHD2_wrINDyHd35AEDwsW/view?usp=sharing).¶
+```{r}
+keep.vector <- nn.res
+names(keep.vector) <- colnames(counts)
+recover.bcs <- intersect(names(n_counts[n_counts<200]),names(keep.vector[keep.vector=="TRUE"]))
+recover <- CreateSeuratObject(counts = counts[,recover.bcs])
+recover <- NormalizeData(recover)
+recover <- ScaleData(recover, features = genes.use)
+recover <- RunPCA(recover,features=genes.use)
+recover <- FindNeighbors(recover, dims = 1:10)
+recover <- FindClusters(recover, resolution = 0.2)
+recover <- RunTSNE(recover, dims = 1:10, check_duplicates = FALSE)
+new.cluster <- c("recovered CD14 Mono","recovered CD4","recovered NK","recovered B cells","recovered platelet")
+names(new.cluster) <- levels(recover)
+recover <- RenameIdents(recover,new.cluster)
+DimPlot(recover, label=TRUE)+labs(title="EmptyNN recovered 885 cells")+NoLegend()
+```
+
