@@ -19,7 +19,7 @@ EmptyNN is implemented in R and depends on the **keras** and **Matrix** R packag
 ### Option 1
 ```
 $ git clone http://github.com/lkmklsmn/empty_nn
-$ cd emptynn
+$ cd empty_nn
 ## enter R and install packages
 $ R
 > install.packages("EmptyNN_1.0.tar.gz", repos = NULL, type = "source")
@@ -42,8 +42,8 @@ $ R
 
 ## Download example datasets
 ```
-$ cd emptynn
-$ Rscript "./code/download.data.R"
+$ cd empty_nn
+$ sh ./code/download_data.sh
 ```
 
 ```
