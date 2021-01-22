@@ -1,0 +1,141 @@
+---
+title: "Figure 3"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# EmptyNN - Figure 3
+The following code reproduces the Figure 3 in our [EmptyNN manuscript](https://www.biorxiv.org/content/10.1101/2021.01.15.426387v1).
+
+# Please download datasets and seurat objects before running this analysis (run download_datasets.sh in terminal)
+# Load libraries
+```{r include=TRUE}
+library("Seurat")
+library("Matrix")
+library('pROC')
+library("ggplot2")
+library("pheatmap")
+load("./../data/BlueYellowColormaps_V1.RData")
+# R version 3.6.3, Seurat_3.2.3, Matrix_1.3-2, ggplot_2_3.3.3, pheatmap_1.0.12 
+```
+
+## Load (1) raw data
+## (2) filtering results of four cell-calling algorithms: EmptyNN (neg.res), CellRanger 2.0 (ranger.keep), EmptyDrops (e.out, e.keep), CellBender (bender.keep).
+```{r include=TRUE}
+raw_counts <- Read10X_h5("./../data/multiplexed_PBMC_raw.h5")
+load("./../data/multiplexed_PBMC_results.RData")
+```
+
+## Load demuxlets and probabilities from Demuxlet
+### Demuxlet is run in a docker image, see detailes in https://github.com/statgen/demuxlet/tree/master/tutorial.
+### The corresponding bam and vcf files can be found in https://github.com/yelabucsf/demuxlet_paper_code/tree/master/fig2.
+### docker run --rm -v your/path/to/a/directory/:/data yimmieg/demuxlet --sam /data/C.merged.bam --vcf /data/b1.b2.b3.merged_32.eagle.hrc.imputed.autosomes.dose.mac1.exon.recode.vcf --field GT --out data/multiplexed_PBMC
+```{r include=TRUE}
+demuxlet <- read.delim("./../data/multiplexed_PBMC_demuxlet.best",as.is=T)
+demuxlet <- demuxlet[-1,]
+demuxlet$identity <- sapply(demuxlet$BEST,function(x) {strsplit(x,"-")[[1]][[1]]})
+rownames(demuxlet) <- demuxlet$BARCODE
+```
+
+# Figure 3A
+```{r include=TRUE}
+cell_contain <- colnames(raw_counts)[neg.res$nn.keep]
+cell_free <- setdiff(colnames(raw_counts),cell_contain)
+df1 <- demuxlet[intersect(cell_contain,rownames(demuxlet)),'PRB.SNG1',drop=F]
+df2 <- demuxlet[intersect(cell_free,rownames(demuxlet)),'PRB.SNG1',drop=F]
+df <- rbind(df2,df1)
+df$predictions <- c(rep("cell-free",nrow(df2)),rep("cell-containing",nrow(df1)))
+ggplot(df, aes(x=predictions, y=PRB.SNG1)) + 
+  geom_boxplot(outlier.colour="black", outlier.shape=16,
+               outlier.size=1, notch=FALSE) + 
+  ggtitle("EmptyNN classification")+
+  xlab("Singlet Probability")+theme_bw()
+```
+
+# Figure 3B
+```{r include=TRUE}
+label <- demuxlet[demuxlet$identity!="DBL",]
+# EmptyNN
+bcs <- intersect(rownames(neg.res$prediction),rownames(label))
+rocobj1 <- roc(label[bcs,"identity"], neg.res$prediction[bcs,'mean.crossval'])
+# Cell Ranger 2.0
+names(ranger.keep) <- colnames(raw_counts)
+bcs <- intersect(names(ranger.keep),rownames(label))
+rocobj2 <- roc(label[bcs,"identity"], as.numeric(ranger.keep[bcs]))
+# EmptyDrops
+bcs <- intersect(rownames(e.out[!is.na(e.out$FDR),]),rownames(label))
+rocobj3 <- roc(label[bcs,'identity'], e.out[bcs,'FDR'])
+# CellBender
+names(bender.keep) <- colnames(raw_counts)
+bcs <- intersect(names(bender.keep),rownames(label))
+rocobj4 <- roc(label[bcs,"identity"], as.numeric(bender.keep[bcs]))
+ggroc(list("EmptyNN"=rocobj1,"CellRanger 2.0"=rocobj2,
+           "EmptyDrops"=rocobj3,"CellBender"=rocobj4),legacy.axes = TRUE) + 
+  labs(x = "FPR", y = "TPR")+
+  geom_segment(aes(x = 0, xend = 1, y = 0, yend = 1), color="darkgrey", linetype="dashed")+
+  ggtitle("Multiplexed PBMC dataset")+ theme_bw()
+```
+
+# Figure 3C
+```{r include=TRUE}
+keep <- neg.res$nn.keep | (e.keep & !is.na(e.keep)) | ranger.keep | bender.keep
+retained <- CreateSeuratObject(counts = raw_counts[,keep])
+retained <- retained[-grep("^MOUSE|^RPS|^RPL|^MT", rownames(retained)),]
+retained <- NormalizeData(retained,verbose=FALSE)
+retained <- FindVariableFeatures(retained,verbose=FALSE)
+retained <- ScaleData(retained,features=VariableFeatures(retained),verbose=FALSE)
+retained <- RunPCA(retained,features=VariableFeatures(retained),verbose=FALSE)
+retained <- FindNeighbors(retained, dims = 1:10,verbose=FALSE)
+retained <- FindClusters(retained, resolution = 0.3,verbose=FALSE)
+retained <- RunTSNE(retained, dims = 1:10,verbose=FALSE)
+retained$demuxlet_label <- demuxlet[colnames(retained),'identity']
+DimPlot(retained, group.by="demuxlet_label")+
+  ggtitle("Demuxlet classification")
+```
+
+# Figure 3D
+```{r include=TRUE}
+retained$emptynn <- colnames(retained) %in% colnames(raw_counts)[neg.res$nn.keep]
+retained$cellranger <- colnames(retained) %in% colnames(raw_counts)[ranger.keep]
+retained$cellbender <- colnames(retained) %in% colnames(raw_counts)[bender.keep]
+retained$emptydrops <- colnames(retained) %in% colnames(raw_counts)[e.keep & !is.na(e.keep)]
+DimPlot(retained, group.by="emptynn",cols=c('grey','steelblue3'))+
+  ggtitle("EmptyNN classification")+NoLegend()
+```
+
+# Figure 3E
+```{r include=TRUE}
+new.cluster <- c("CD4","NK","CD14 Mono c1","CD14 Mono c2","Ambient","CD16 Mono",
+                 "Platelets","DC","pDCs")
+names(new.cluster) <- levels(retained)
+retained <- RenameIdents(retained,new.cluster)
+DimPlot(retained, label=T)+ggtitle("Celltype identities")+NoLegend()
+```
+
+# Figure 3F
+```{r include=TRUE}
+des <- FindAllMarkers(retained, only.pos = TRUE, min.pct = 0.25,
+                      logfc.threshold = 0.25,verbose=FALSE)
+asplit_genes <- split(1:nrow(des), des$cluster)
+genes <- unlist(lapply(asplit_genes, function(x) des[x[1:10], "gene"]))
+genes <- genes[genes %in% rownames(retained@assays$RNA@data)]
+# Average cells within each cluster
+asplit_cells <- split(rownames(retained@meta.data), retained@active.ident)
+means <- do.call(cbind, lapply(asplit_cells, function(x){
+  s1 <- Matrix::rowMeans(retained@assays$RNA@data[genes, sample(unlist(x), 10)])
+  s2 <- Matrix::rowMeans(retained@assays$RNA@data[genes, sample(unlist(x), 10)])
+  s3 <- Matrix::rowMeans(retained@assays$RNA@data[genes, sample(unlist(x), 10)])
+  cbind(s1, s2, s3)
+}))
+cell_type <- unlist(lapply(names(asplit_cells), function(x) rep(x, 3)))
+# Create heatmap (sample 3 "replicates")
+anno_col <- data.frame(cell_type)
+rownames(anno_col) <- colnames(means) <- paste(colnames(means), cell_type)
+pheatmap(means,cluster_rows = F, cluster_cols = F, scale = "row",
+         breaks = seq(-2, 2, length = length(yellow2blue) + 1), col = yellow2blue,
+         annotation_col = anno_col,show_colnames = F,
+         main='Multiplexed PBMC dataset')
+```
+
+

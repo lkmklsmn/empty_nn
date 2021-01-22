@@ -1,0 +1,127 @@
+---
+title: "Cell calling"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+The following code shows application of four cell calling algorithms (EmptyNN, CellRanger 2.0, EmptyDrops, CellBender) to four datasets: (1) Cell hashing dataset, (2) Multiplexed PBMC dataset, (3) PBMC 8k dataset, and (4) Neuron 900 dataset. See details in our [EmptyNN manuscript](https://www.biorxiv.org/content/10.1101/2021.01.15.426387v1).
+
+# Please install required packages and download datasets before running this analysis (run download_datasets.sh in terminal).
+```{r}
+## install EmptyNN
+# install.packages("devtools")
+# library(devtools)
+# install_github("lkmklsmn/empty_nn")
+## install DropletUtils, a package to run EmptyDrops
+#BiocManager::install("DropletUtils")
+```
+
+
+## Load libraries
+```{r}
+library('EmptyNN')
+library('DropletUtils') 
+# load other packages
+library("Seurat")
+library("Matrix")
+# R version 3.6.3, EmptyNN 1.0, DropletUtils 1.6.1, Seurat 3.2.3, Matrix 1.3-2
+```
+
+# Cell hashing dataset
+```{r}
+# this file contains raw data matrix and ground-truth label for each barcode.
+load("./../data/cell_hashing_raw.RData")
+```
+
+## We apply EmptyNN to do the preprocessing.
+The **input** is raw count matrix, either in h5 or mtx format. The rows are barcodes and columns are genes.
+The **output** is a boolean vector showing cell-free droplet (empty droplet) or cell-containing droplet.
+**Runtime** depends on the dataset to be processed and parameter setting. A higher k_folds or iteration means longer runtime. It takes ~30 mins to run with the default parameters.
+For demonstration purposes, we set parameters to a low number, which takes ~5 mins.
+```{r}
+nn.res <- emptynn(Stoeckius.counts,threshold=50,k=2,iteration=1)
+```
+The **nn.res** is a list, containing 
+1. A boolean vector showing the predictions for cell-free or cell-containing droplets
+```{r}
+nn.res$nn.keep[1:5]
+```
+2. Probabilities for each barcode in set U
+```{r}
+head(nn.res$prediction)
+```
+## Next, we applied other state-of-art methods to benchmark our analysis, including CellRanger 2.0, EmptyDrops, and CellBender.
+```{r}
+# CellRanger 2.0¶
+n_counts <- rowSums(Stoeckius.counts)
+ranger.keep <- n_counts>=200
+# EmptyDrops
+e.out <- emptyDrops(t(Stoeckius.counts))
+e.keep <- e.out$FDR <= 0.001
+# CellBender is run in a CPU server using following code:
+# cellbender remove-background \
+#   --input /path/to/Cell_hashing/ \
+#   --output /path/to/Cell_hashing_CellBender.h5 \
+#   --expected-cells 20000 \
+#   --total-droplets-included 25000
+```
+
+# Multiplexed PBMC dataset
+```{r}
+counts <- Read10X_h5("./../data/multiplexed_PBMC_raw.h5")
+# EmptyNN
+nn.res <- emptynn(t(counts),threshold=100,k=2,iteration=1)
+# CellRanger 2.0¶
+n_counts <- colSums(counts)
+ranger.keep <- n_counts>=200
+# EmptyDrops
+e.out <- emptyDrops(counts)
+e.keep <- e.out$FDR <= 0.001
+# CellBender is run in a CPU server using following code:
+# cellbender remove-background \
+#   --input /path/to/multiplexed_PBMC/ \
+#   --output ./multiplexed_PBMC_CellBender.h5 \
+#   --total-droplets-included 50000 \
+#   --low-count-threshold 50
+```
+
+# PBMC 8k dataset
+```{r}
+# counts <- Read10X_h5("./../data/pbmc_8k_raw.h5")
+# # EmptyNN
+# nn.res <- emptynn(t(counts),threshold=100,k=2,iteration=1)
+# # CellRanger 2.0¶
+# n_counts <- colSums(counts)
+# ranger.keep <- n_counts>=200
+# # EmptyDrops
+# e.out <- emptyDrops(counts)
+# e.keep <- e.out$FDR <= 0.001
+# CellBender is run in a CPU server using following code:
+# cellbender remove-background \
+#   --input /path/to/multiplexed_PBMC/ \
+#   --output ./multiplexed_PBMC_CellBender.h5 \
+#   --expected-cells 10000 \
+#   --total-droplets-included 25000
+```
+
+# Neuron 900 dataset
+```{r}
+# counts <- Read10X_h5("./../data/neurons_900_raw.h5")
+# # EmptyNN
+# nn.res <- emptynn(t(counts),threshold=100,k=2,iteration=1)
+# # CellRanger 2.0¶
+# n_counts <- colSums(counts)
+# ranger.keep <- n_counts>=200
+# # EmptyDrops
+# e.out <- emptyDrops(counts)
+# e.keep <- e.out$FDR <= 0.001
+# CellBender is run in a CPU server using following code:
+# cellbender remove-background \
+#   --input /path/to/multiplexed_PBMC/ \
+#   --output ./multiplexed_PBMC_CellBender.h5 \
+#   --expected-cells 900 \
+#   --total-droplets-included 10000
+```
+
+

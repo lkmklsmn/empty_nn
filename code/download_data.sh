@@ -1,21 +1,42 @@
 #!/bin/bash
-# Cell hashing dataset (Stoeckius et al.)
-fileName=Cell_hashing_raw.RData
+# Raw datasets
+## Cell hashing dataset (Stoeckius et al.)
+function download_large_googlefiles {
+  curl -sc /tmp/cookie "https://drive.google.com/uc?export=download&id=${fileId}" > /dev/null
+  code="$(awk '/_warning_/ {print $NF}' /tmp/cookie)"
+  curl -Lb /tmp/cookie "https://drive.google.com/uc?export=download&confirm=${code}&id=${fileId}" -o ./data/${fileName}
+}
+fileName=cell_hashing_raw.RData
 fileId=12y0fW_Y9OdhBLns_2gpjo2Xq25c4qnGY
-curl -sc /tmp/cookie "https://drive.google.com/uc?export=download&id=${fileId}" > /dev/null
-code="$(awk '/_warning_/ {print $NF}' /tmp/cookie)"
-curl -Lb /tmp/cookie "https://drive.google.com/uc?export=download&confirm=${code}&id=${fileId}" -o ./data/${fileName}
-# Multiplexed PBMC dataset (Kang et al.)
-wget -O ./data/Multiplexed_PBMC_raw.h5 "https://drive.google.com/uc?export=download&id=1Z1Vxzpu17kWwZGo6f2BMKo9eLjofmdrk"
-# Two additional 10x datasets
-wget -O ./data/PBMC_10k_raw.h5 "http://cf.10xgenomics.com/samples/cell-exp/3.0.0/pbmc_10k_v3/pbmc_10k_v3_raw_feature_bc_matrix.h5"
-wget -O ./data/Neurons_900_raw.h5 "http://cf.10xgenomics.com/samples/cell-exp/2.1.0/neurons_900/neurons_900_raw_gene_bc_matrices_h5.h5"
+download_large_googlefiles
+
+## Multiplexed PBMC dataset (Kang et al.)
+wget -O ./data/multiplexed_PBMC_raw.h5 "https://drive.google.com/uc?export=download&id=1Z1Vxzpu17kWwZGo6f2BMKo9eLjofmdrk"
+
+## Two additional 10x datasets
+wget -O ./data/pbmc_8k_raw.h5 "https://cf.10xgenomics.com/samples/cell-exp/2.1.0/pbmc8k/pbmc8k_raw_gene_bc_matrices_h5.h5"
+wget -O ./data/neurons_900_raw.h5 "http://cf.10xgenomics.com/samples/cell-exp/2.1.0/neurons_900/neurons_900_raw_gene_bc_matrices_h5.h5"
 
 # Other files to reproduce the results in manuscript
-fileName=pbmc8k_retained.rds
+## reproduce Figure 2
+wget -O ./data/cell_hashing_results.RData "https://drive.google.com/uc?export=download&id=1AXUzQEp1OJmZgLTwTHf1szqD-9nE092v"
+fileName=reference_pbmc_3k.rds
+fileId=1qsVgHJ6TmorW4lxFbD9x-iiBNKZY-5b4
+download_large_googlefiles
+fileName=cell_hashing_original_paper.rds
+fileId=1oviPPff0-GV6t4p-eaFx5gF8fbU0-m-u
+download_large_googlefiles
+fileName=cell_hashing_retained.rds
+fileId=1G19QYFoy3AvtEIiwuo37sPrtXKDW3qIl
+download_large_googlefiles
+
+## reproduce Figure 3
+wget -O ./data/multiplexed_PBMC_results.RData "https://drive.google.com/uc?export=download&id=19x8WYyxvSjbFa1M3286NXW1y-SX2K6g7"
+wget -O ./data/multiplexed_PBMC_demuxlet.best "https://drive.google.com/uc?export=download&id=1fVvTZE8GE3424Dp1xCqethe_8qtv5b8n"
+
+## reproduce Figure 4
+fileName=pbmc_8k_retained.rds
 fileId=1YiYD0yt8dbkK0AC6jm9g2o85tNRsiryZ
-curl -sc /tmp/cookie "https://drive.google.com/uc?export=download&id=${fileId}" > /dev/null
-code="$(awk '/_warning_/ {print $NF}' /tmp/cookie)"
-curl -Lb /tmp/cookie "https://drive.google.com/uc?export=download&confirm=${code}&id=${fileId}" -o ./data/${fileName}
+download_large_googlefiles
 wget -O ./data/neuron900_retained.rds "https://drive.google.com/uc?export=download&id=1cwz4KDW4KdMziYRKVTieyu4mqfSjsYL-"
 wget -O ./data/BlueYellowColormaps_V1.RData "https://drive.google.com/uc?export=download&id=1WHv5il6L26hAii961wKfvf3AZFZenpx9"
