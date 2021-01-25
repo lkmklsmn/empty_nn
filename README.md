@@ -16,7 +16,7 @@ Check out our jupyter notebook (in R environment) tutorial at [*EmptyNN - Cell H
 ## Installation
 EmptyNN is implemented in R and depends on the **keras** and **Matrix** R packages.
 
-### Option 1
+#### Option 1
 ```
 $ git clone http://github.com/lkmklsmn/empty_nn
 $ cd empty_nn
@@ -26,7 +26,7 @@ $ R
 
 > install.packages("EmptyNN_1.0.tar.gz", repos = NULL, type = "source")
 ```
-### Option 2
+#### Option 2
 ```
 > install.packages("devtools")
 > library(devtools)
@@ -35,14 +35,14 @@ $ R
 
 ## Usage
 
-## Input
+#### Input
 1. Raw unfiltered count matrix in mtx or h5 format
 
-## Output
+#### Output
 1. A boolean vector showing the predictions for cell-free or cell-containing droplets
 2. Probabilities for each barcode in set *U*
 
-## Download example datasets
+#### Download example datasets
 ```
 $ cd empty_nn
 $ sh ./code/download_data.sh
