@@ -11,7 +11,7 @@ EmptyNN is a novel **cell-calling algorithm** based on **Positive-unlabeled (PU)
 To reproduce the analysis and figures presented in our manuscript please see the [*Reproducibility*](https://github.com/lkmklsmn/empty_nn/tree/master/Reproducibility) folder.
 
 ## Tutorial
-Check out our jupyter notebook (in R environment) tutorial at [*EmptyNN - Cell Hashing Dataset Tutorial*](https://github.com/lkmklsmn/empty_nn/blob/master/Reproducibility/EmptyNN%20-%20Cell%20Hashing%20Dataset%20Tutorial.ipynb).
+Check out our jupyter notebook (in R environment) tutorial at [*EmptyNN - Cell Hashing Dataset Tutorial*](https://github.com/lkmklsmn/empty_nn/blob/master/tutorial/EmptyNN%20-%20Cell%20Hashing%20Dataset%20Tutorial.ipynb).
 
 ## Installation
 EmptyNN is implemented in R and depends on the **keras** and **Matrix** R packages.
