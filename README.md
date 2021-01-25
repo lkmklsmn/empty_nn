@@ -48,10 +48,13 @@ $ sh ./code/download_data.sh
 
 ```
 library(EmptyNN)
+
 # Load data
 counts <- Read10X_h5("./data/example_data.h5", use.names = TRUE, unique.features = TRUE)
+
 # Run emptynn()
 nn.res <- emptynn(counts, threshold = 100, k_folds = 10, iteration = 10, verbose = TRUE)
+
 # Downstream analysis
 retained <- runSeurat(counts = counts[, nn.res$nn.keep], resolution = 0.2)
 DimPlot(retained,reduction = 'tsne') + ggtitle("EmptyNN") + NoLegend()
