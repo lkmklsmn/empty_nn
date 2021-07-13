@@ -1,5 +1,6 @@
 runSeurat <-
 function(counts,gene.use=FALSE,resolution){
+        require(Seurat)
         tmp <- CreateSeuratObject(counts = counts)
         tmp <- tmp[-grep("^RPS", rownames(tmp)),]
         tmp <- tmp[-grep("^RPL", rownames(tmp)),]
