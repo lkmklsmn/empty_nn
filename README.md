@@ -50,6 +50,7 @@ $ sh ./code/download_data.sh
 
 ```
 library(EmptyNN)
+library(Seurat)
 
 # Load data
 counts <- Read10X_h5("./data/example_data.h5", use.names = TRUE, unique.features = TRUE)
