@@ -1,8 +1,9 @@
 ---
 title: "Figure 2"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
+  word_document: default
 ---
 The following code reproduces the Figure 2 in our [EmptyNN manuscript](https://www.biorxiv.org/content/10.1101/2021.01.15.426387v1).
 
@@ -16,15 +17,15 @@ library('pROC')
 library("ggplot2")
 library("plyr")
 library("pheatmap")
-load("./../data/BlueYellowColormaps_V1.RData")
+load("../data/BlueYellowColormaps_V1.RData")
 # R version 3.6.3, Seurat_3.2.3, Matrix_1.3-2, ggplot_2_3.3.3, pheatmap_1.0.12 
 ```
 
 ## Load (1) raw data
-## (2) filtering results of four cell-calling algorithms: EmptyNN (nn.res), CellRanger 2.0 (ranger.keep), EmptyDrops (e.out, e.keep), CellBender (bender.keep)
+## (2) filtering results of four cell-calling algorithms: EmptyNN (nn.res), CellRanger 2.0 (ranger.keep), CellRanger 3.0 (ranger3.keep), EmptyDrops (e.out, e.keep), CellBender (bender.keep)
 ```{r include=TRUE}
-load("./../data/cell_hashing_raw.RData")
-load("./../data/cell_hashing_results.RData")
+load("../data/cell_hashing_raw.RData")
+load("../data/cell_hashing_results.RData")
 ```
 
 # Figure 2A
@@ -34,20 +35,19 @@ aframe <- data.frame(total_counts, rank = rank(-total_counts),
                      emptynn = nn.res$nn.keep)
 twohundred <- unique(aframe$rank[which(aframe$total_counts == 200)])
 fifty <- unique(aframe$rank[which(aframe$total_counts == 50)])
-recovered <- aframe$rank[which(aframe$emptynn & 
-                                       aframe$total_counts < 200 
+recovered <- aframe$rank[which(aframe$emptynn 
+                               & aframe$total_counts < 200 
                                & aframe$total_counts > 50)]
 ggplot(aframe, aes(rank, total_counts)) +
   scale_x_continuous(trans='log10') + scale_y_continuous(trans='log10') +
   geom_point() + theme_bw() +
   xlab("Sorted barcodes") + ylab("Total counts [log10]") +
-  geom_vline(xintercept = twohundred, color = "dodgerblue", linetype = "dashed") +
-  geom_vline(xintercept = fifty, color = "forestgreen", linetype = "dashed")
+  geom_vline(xintercept = twohundred, color = "dodgerblue", linetype = "dashed") +geom_vline(xintercept = fifty, color = "forestgreen", linetype = "dashed")
 ```
 
 # Figure 2B
 ```{r include=TRUE}
-ggplot(aframe[which(aframe$total_counts < 250 & aframe$total_counts > 50),], aes(rank,total_counts)) + 
+ggplot(aframe[which(aframe$total_counts < 210 & aframe$total_counts > 40),], aes(rank,total_counts)) + 
   xlab("Sorted barcodes") + ylab("Total counts") +
   geom_vline(xintercept = twohundred, color = "dodgerblue", linetype = "dashed") +
   geom_vline(xintercept = fifty, color = "forestgreen", linetype = "dashed") +
@@ -57,18 +57,18 @@ ggplot(aframe[which(aframe$total_counts < 250 & aframe$total_counts > 50),], aes
 
 # Figure 2C
 ```{r include=TRUE}
-original_paper <- readRDS("./../data/cell_hashing_original_paper.rds")
-genes.use <- VariableFeatures(original_paper)
 names(nn.res$nn.keep) <- rownames(Stoeckius.counts)
 recover.bcs <- intersect(names(total_counts[total_counts<200]),
                          names(nn.res$nn.keep[nn.res$nn.keep]))
 recover <- CreateSeuratObject(counts = t(Stoeckius.counts[recover.bcs,]))
 recover <- NormalizeData(recover,verbose = FALSE)
+original_paper <- readRDS("./../data/cell_hashing_original_paper.rds")
+genes.use <- VariableFeatures(original_paper)
 recover <- ScaleData(recover, features = genes.use,verbose = FALSE)
 sub.genes.use <- rownames(recover[["RNA"]]@scale.data)
 recover <- RunPCA(recover,features=sub.genes.use,verbose = FALSE)
 recover <- FindNeighbors(recover, dims = 1:10,verbose = FALSE)
-recover <- FindClusters(recover, resolution = 0.2,verbose = FALSE)
+recover <- FindClusters(recover, resolution = 0.3,verbose = FALSE)
 recover <- RunTSNE(recover, dims = 1:10, check_duplicates = FALSE,verbose = FALSE)
 new.cluster <- c("CD14 Mono","CD4","NK","B",'Platelet')
 names(new.cluster) <- levels(recover)
@@ -103,20 +103,26 @@ pheatmap(means,cluster_rows = F, cluster_cols = F, scale = "row",show_rownames =
 # Figure 2E
 ```{r}
 pbmc <- readRDS("./../data/reference_pbmc_3k.rds")
-pla <- subset(pbmc,idents="Platelet")
-pla.recover <- subset(recover,idents="Platelet")
-c1 <- as.matrix(pla.recover[['RNA']]@counts)
-c2 <- as.matrix(pla[['RNA']]@counts)
-features <- head(rownames(FindMarkers(recover, ident.1 = "Platelet",only.pos = TRUE)),300)
-features <- intersect(intersect(rownames(c1),rownames(c2)),features)
-expr <- cbind(c1[features,],c2[features,])
-m1 <- rowMeans(c1[rownames(expr),])
-m2 <- rowMeans(c2[rownames(expr),])
-df <- data.frame("recovered"=m1,"bona_fide"=m2)
-ggplot(df, aes(x=recovered, y=bona_fide)) + 
-        geom_point()+
-        geom_smooth(method=lm)+
-        xlab("recovered platelets")+ylab("bona fide platelets")
+pbmc$celltype <- as.character(Idents(pbmc))
+pbmc$celltype[pbmc$celltype  %in% c("Naive CD4 T","Memory CD4 T")] <- "CD4"
+pbmc$celltype[pbmc$celltype=="CD14+ Mono"] <- "CD14 Mono"
+lst <- unique(as.character(Idents(recover)))
+df <- do.call(rbind,lapply(lst,function(x){
+  tmp <- pbmc[,pbmc$celltype==x]
+  tmp.recover <- subset(recover,idents=x)
+  c1 <- as.matrix(tmp.recover[['RNA']]@counts)
+  c2 <- as.matrix(tmp[['RNA']]@counts)
+  features <- intersect(rownames(c1),rownames(c2))
+  m1 <- rowMeans(c1[features,])
+  m2 <- rowMeans(c2[features,])
+  cor(m1,m2)
+}))
+df <- data.frame(df)
+colnames(df) <- "coefficient"
+df$celltype <- lst
+ggplot(df,aes(celltype,coefficient,fill=celltype))+
+  geom_bar(stat="identity")+ylab("Correlation coefficient")+
+  theme_bw()
 ```
 
 # Figure S3A
@@ -125,10 +131,62 @@ retained <- readRDS("./../data/cell_hashing_retained.rds")
 retained$label <- label[colnames(retained),1]
 DimPlot(retained,reduction='tsne',group.by = 'label')+
   NoLegend()+labs(title="Cell hashing info")
-```
-# Figure S3B
-```{r}
 DimPlot(retained,label=T,reduction='tsne')+NoLegend()+labs(title="Cell type identity")
+```
+
+# Figure 2F ####
+```{r}
+# EmptyNN-retained, EmptyNN-recovered, All-retained
+set1 <- colnames(retained)[retained$emptynn & !retained$emptydrops & !retained$cellranger & !retained$cellbender & !retained$cellranger3.0]
+set2 <- colnames(retained)[!retained$emptynn & retained$emptydrops & retained$cellranger & retained$cellbender & retained$cellranger3.0]
+set3 <- colnames(retained)[retained$emptynn & retained$emptydrops & retained$cellranger & retained$cellbender & retained$cellranger3.0]
+tmp <- retained[,c(set1,set2,set3)]
+tmp$detection <- c(rep("EmptyNN retained",length(set1)),
+                   rep("EmptyNN removed",length(set2)),
+                   rep("All",length(set3)))
+list <- c("CD4","CD14 Mono","CD8","B")
+res <- do.call(rbind,lapply(list,function(x){
+  tmp <- tmp[,Idents(tmp)==x]
+  Idents(tmp) <- tmp$detection
+  m1 <- FindMarkers(tmp,ident.1="EmptyNN retained",ident.2="All")
+  m1$method <- "EmptyNN retained vs All"
+  a <- sum(m1$p_val_adj<0.05)
+  m2 <- FindMarkers(tmp,ident.1="EmptyNN removed",ident.2="All")
+  m2$method <- "EmptyNN removed vs All"
+  b <- sum(m2$p_val_adj<0.05)
+  return(c(a,b))
+}))
+res <- data.frame(res)
+colnames(res) <- c("EmptyNN_retained vs All","EmptyNN_removed vs All")
+res$celltype <- list
+library(reshape2)
+df <- melt(res,id.vars = 'celltype')
+colnames(df)[1:2] <- c('Celltype',"comparison")
+```
+```{r}
+ggplot(df, aes(x=Celltype, y=value,fill=comparison)) +
+  geom_bar(stat="identity", position=position_dodge())+
+  scale_y_continuous(trans='log10',name = "# of differentially expressed genes")+
+  theme_bw()
+```
+
+
+# Figure 2G ####
+```{r}
+tmp <- tmp[,Idents(tmp)=="CD4"]
+Idents(tmp) <- tmp$detection
+m1 <- FindMarkers(tmp,ident.1="EmptyNN retained",ident.2="All")
+m1$method <- "EmptyNN retained vs All"
+m2 <- FindMarkers(tmp,ident.1="EmptyNN removed",ident.2="All")
+m2$method <- "EmptyNN removed vs All"
+m <- rbind(m1,m2)
+ggplot(m, aes(x = avg_log2FC, y = -log10(p_val_adj)))+
+  geom_point() +geom_hex(bins = 50)+
+  scale_fill_viridis_c(trans = 'log', breaks = c(1, 10, 100))+
+  theme_bw()+
+  facet_wrap(~method)+
+  geom_vline(xintercept = 0, linetype = 'dashed') +
+  ggtitle("CD4 T cells")+xlim(c(-10,10))
 ```
 
 # Figure S3C,D,E,F
@@ -136,83 +194,15 @@ DimPlot(retained,label=T,reduction='tsne')+NoLegend()+labs(title="Cell type iden
 DimPlot(retained,reduction='tsne',group.by = 'emptynn',cols=c('grey','steelblue'))+
   NoLegend()+labs(title="EmptyNN")
 DimPlot(retained,reduction='tsne',group.by = 'cellranger',cols=c('grey','steelblue'))+
-  NoLegend()+labs(title="CellRanger 2.0")
+  NoLegend()+labs(title="CellRanger v2")
 DimPlot(retained,reduction='tsne',group.by = 'emptydrops',cols=c('grey','steelblue'))+
   NoLegend()+labs(title="EmptyDrops")
+DimPlot(retained,reduction='tsne',group.by = 'cellranger3.0',cols=c('grey','steelblue'))+
+  NoLegend()+labs(title="CellRanger v3")
 DimPlot(retained,reduction='tsne',group.by = 'cellbender',cols=c('grey','steelblue'))+
   NoLegend()+labs(title="CellBender")
-```
 
-# Figure 2F
-```{r}
-sub <- retained[,sample(colnames(retained),10000)]
-sub <- subset(sub,idents = c("Ambient","Doublets","pDCs"), invert=TRUE)
-dist.mtx <- as.matrix(dist(sub@reductions$pca@cell.embeddings,
-                           method = "euclidean",upper=TRUE))
-sub$source <- 'recovered'
-sub$source[rownames(sub@meta.data) %in% colnames(original_paper)] <- 'original'
-sub$label <- Idents(sub)
-# define function euclidean.calc()
-euclidean.calc <- function(cluster){
-  # recovered with original
-  condition <- sub$label==cluster & sub$emptynn & sub$source == 'recovered'
-  row <- rownames(sub@meta.data[condition,])
-  column <- names(sub$source[sub$source=='original'])
-  df <- dist.mtx[row,column]
-  neg.m <- data.frame("dist"=colMeans(df))
-  idx <- match(rownames(neg.m),names(sub$label))
-  neg.m$label <- sub$label[idx]
-  colnames(neg.m) <- c("dist",'label')
-  # original with original
-  condition <- sub$label==cluster & sub$source == 'original'
-  column <- rownames(sub@meta.data[condition,])
-  dist.b <- dist.mtx[column,column]
-  orig.m <- data.frame('dist'=colMeans(dist.b),cluster)
-  colnames(orig.m) <- c("dist",'label')
-  # recover with recover
-  condition <- sub$label==cluster & sub$emptynn & sub$source == 'recovered'
-  column <- rownames(sub@meta.data[condition,])
-  dist.b <- dist.mtx[column,column]
-  recov.m <- data.frame('dist'=colMeans(dist.b),cluster)
-  colnames(recov.m) <- c("dist",'label')
-  tmp <- rbind(neg.m,orig.m,recov.m)
-  tmp$group <- c(rep("recovered with original",nrow(neg.m)),
-                 rep("original with original",nrow(orig.m)),
-                 rep("recover with recover",nrow(recov.m)))
-  return(tmp)
-}
-# calculate for NK cell type
-tmp <- euclidean.calc("NK")
-ggplot(tmp, aes(x=label, y=dist,fill=group)) + 
-  geom_boxplot(outlier.shape=NA)+
-  xlab("original clusters")+ylab("Euclidean distance")
 ```
-
-# Figure 2G
-```{r}
-tmp <- retained[,retained$emptynn==TRUE]
-m1 <- FindMarkers(tmp, ident.1 = "CD4",ident.2 = "CD14 Mono",only.pos = TRUE,verbose=F)
-tmp <- retained[,retained$cellranger==TRUE]
-m2 <- FindMarkers(tmp, ident.1 = "CD4",ident.2 = "CD14 Mono",only.pos = TRUE,verbose=F)
-tmp <- retained[,retained$emptydrops==TRUE]
-m3 <- FindMarkers(tmp, ident.1 = "CD4",ident.2 = "CD14 Mono",only.pos = TRUE,verbose=F)
-tmp <- retained[,retained$cellbender==TRUE]
-m4 <- FindMarkers(tmp, ident.1 = "CD4",ident.2 = "CD14 Mono",only.pos = TRUE,verbose=F)
-marker1 <- intersect(rownames(m1)[m1$p_val_adj<0.05],rownames(m2)[m2$p_val_adj<0.05])
-marker2 <- intersect(rownames(m3)[m3$p_val_adj<0.05],rownames(m4)[m4$p_val_adj<0.05])
-CD4.marker <- intersect(marker1,marker2)
-df <- data.frame("logFC"=c(m1[CD4.marker,]$avg_logFC,
-                           m2[CD4.marker,]$avg_logFC,
-                           m3[CD4.marker,]$avg_logFC,
-                           m4[CD4.marker,]$avg_logFC))
-df$method <- c(rep("EmptyNN",length(CD4.marker)),rep("CellRanger 2.0",length(CD4.marker)),
-              rep("EmptyDrops",length(CD4.marker)),rep("CellBender",length(CD4.marker)))
-mu <- ddply(df, "method", summarise, grp.mean=mean(logFC))
-ggplot(df, aes(x=logFC, color=method)) +
-  geom_density()+xlab("Log2(foldchange)")+
-  geom_vline(data=mu, aes(xintercept=grp.mean, color=method),linetype="dashed")
-```
-
 
 # Figure 2H
 ```{r include=TRUE}
@@ -220,11 +210,19 @@ label[,2] <- ifelse(label[,1]=="Negative","cell-free","cell-containing")
 bcs <- rownames(nn.res$prediction)
 rocobj1 <- roc(label[bcs,2], nn.res$prediction[bcs,'mean.crossval'])
 rocobj2 <- roc(label[names(ranger.keep),2], as.numeric(ranger.keep))
+rocobj2 <- roc(label[names(ranger.keep),2], as.numeric(ranger.keep))
 bcs <- rownames(e.out[!is.na(e.out$FDR),])
 rocobj3 <- roc(label[bcs,2], e.out[bcs,'FDR'])
 rocobj4 <- roc(label[names(bender.keep),2], as.numeric(bender.keep))
-ggroc(list("EmptyNN"=rocobj1,"CellRanger 2.0"=rocobj2,
-           "EmptyDrops"=rocobj3,"CellBender"=rocobj4),
-      legacy.axes = TRUE) + labs(x = "FPR", y = "TPR")+
-  geom_segment(aes(x = 0, xend = 1, y = 0, yend = 1), color="darkgrey", linetype="dashed")
+ranger3.keep <- rownames(Stoeckius.counts) %in% colnames(retained)[retained$cellranger3.0]
+names(ranger3.keep) <- rownames(Stoeckius.counts)
+rocobj5 <- roc(label[names(ranger3.keep),2], as.numeric(ranger3.keep))
+ggroc(list("EmptyNN, 0.9473"=rocobj1,"CellRanger 2.0, 0.8688"=rocobj2,
+           "EmptyDrops, 0.7967"=rocobj3,"CellBender, 0.8880"=rocobj4,
+           "CellRanger 3.0, 0.9016"=rocobj5),linetype='dashed',
+      legacy.axes = TRUE) + labs(x = "1-Specificity", y = "Sensitivity")+
+  geom_segment(aes(x = 0, xend = 1, y = 0, yend = 1), 
+               color="darkgrey", linetype="dashed")+theme_bw()
 ```
+
+

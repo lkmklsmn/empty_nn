@@ -1,16 +1,16 @@
 ---
 title: "Figure 3"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 ---
 
 # EmptyNN - Figure 3
 The following code reproduces the Figure 3 in our [EmptyNN manuscript](https://www.biorxiv.org/content/10.1101/2021.01.15.426387v1).
 
-# Please download datasets and seurat objects before running this analysis (run download_datasets.sh in terminal)
 # Load libraries
 ```{r include=TRUE}
+# Please download datasets and seurat objects before running this analysis (run download_datasets.sh in terminal)
 library("Seurat")
 library("Matrix")
 library('pROC')
@@ -28,10 +28,10 @@ load("./../data/multiplexed_PBMC_results.RData")
 ```
 
 ## Load demuxlets and probabilities from Demuxlet
+```{r include=TRUE}
 ### Demuxlet is run in a docker image, see detailes in https://github.com/statgen/demuxlet/tree/master/tutorial.
 ### The corresponding bam and vcf files can be found in https://github.com/yelabucsf/demuxlet_paper_code/tree/master/fig2.
 ### docker run --rm -v your/path/to/a/directory/:/data yimmieg/demuxlet --sam /data/C.merged.bam --vcf /data/b1.b2.b3.merged_32.eagle.hrc.imputed.autosomes.dose.mac1.exon.recode.vcf --field GT --out data/multiplexed_PBMC
-```{r include=TRUE}
 demuxlet <- read.delim("./../data/multiplexed_PBMC_demuxlet.best",as.is=T)
 demuxlet <- demuxlet[-1,]
 demuxlet$identity <- sapply(demuxlet$BEST,function(x) {strsplit(x,"-")[[1]][[1]]})
@@ -70,16 +70,20 @@ rocobj3 <- roc(label[bcs,'identity'], e.out[bcs,'FDR'])
 names(bender.keep) <- colnames(raw_counts)
 bcs <- intersect(names(bender.keep),rownames(label))
 rocobj4 <- roc(label[bcs,"identity"], as.numeric(bender.keep[bcs]))
-ggroc(list("EmptyNN"=rocobj1,"CellRanger 2.0"=rocobj2,
-           "EmptyDrops"=rocobj3,"CellBender"=rocobj4),legacy.axes = TRUE) + 
-  labs(x = "FPR", y = "TPR")+
-  geom_segment(aes(x = 0, xend = 1, y = 0, yend = 1), color="darkgrey", linetype="dashed")+
-  ggtitle("Multiplexed PBMC dataset")+ theme_bw()
+# CellRanger 3.0 
+bcs <- intersect(names(ranger3.keep),rownames(label))
+rocobj5 <- roc(label[bcs,"identity"], as.numeric(ranger3.keep[bcs]))
+ggroc(list("EmptyNN, 0.963"=rocobj1,"CellRanger 2.0, 0.8294"=rocobj2,
+           "EmptyDrops, 0.8643"=rocobj3,"CellBender, 0.5802"=rocobj4,
+           "CellRanger 3.0, 0.8303"=rocobj5),linetype='dashed',
+      legacy.axes = TRUE) + labs(x = "FPR", y = "TPR")+
+  geom_segment(aes(x = 0, xend = 1, y = 0, yend = 1), color="darkgrey", linetype="dashed")+theme_bw()
 ```
+
 
 # Figure 3C
 ```{r include=TRUE}
-keep <- neg.res$nn.keep | (e.keep & !is.na(e.keep)) | ranger.keep | bender.keep
+keep <- neg.res$nn.keep | (e.keep & !is.na(e.keep)) | ranger.keep | bender.keep | ranger3.keep
 retained <- CreateSeuratObject(counts = raw_counts[,keep])
 retained <- retained[-grep("^MOUSE|^RPS|^RPL|^MT", rownames(retained)),]
 retained <- NormalizeData(retained,verbose=FALSE)
@@ -100,6 +104,7 @@ retained$emptynn <- colnames(retained) %in% colnames(raw_counts)[neg.res$nn.keep
 retained$cellranger <- colnames(retained) %in% colnames(raw_counts)[ranger.keep]
 retained$cellbender <- colnames(retained) %in% colnames(raw_counts)[bender.keep]
 retained$emptydrops <- colnames(retained) %in% colnames(raw_counts)[e.keep & !is.na(e.keep)]
+retained$cellranger3.0 <- colnames(retained) %in% colnames(raw_counts)[ranger3.keep]
 DimPlot(retained, group.by="emptynn",cols=c('grey','steelblue3'))+
   ggtitle("EmptyNN classification")+NoLegend()
 ```
@@ -133,7 +138,7 @@ cell_type <- unlist(lapply(names(asplit_cells), function(x) rep(x, 3)))
 anno_col <- data.frame(cell_type)
 rownames(anno_col) <- colnames(means) <- paste(colnames(means), cell_type)
 pheatmap(means,cluster_rows = F, cluster_cols = F, scale = "row",
-         breaks = seq(-2, 2, length = length(yellow2blue) + 1), col = yellow2blue,
+         breaks = seq(-2, 2, length = length(yellow2blue)+1),col=yellow2blue,
          annotation_col = anno_col,show_colnames = F,
          main='Multiplexed PBMC dataset')
 ```

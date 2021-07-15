@@ -1,106 +1,111 @@
 ---
 title: "Figure 4"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 ---
 
 # EmptyNN - Figure 4
 The following code reproduces the Figure 4 in our [EmptyNN manuscript](https://www.biorxiv.org/content/10.1101/2021.01.15.426387v1).
 
+# Load libraries
+```{r include=TRUE}
 # Please download datasets and seurat objects before running this analysis (run download_datasets.sh in terminal)
-
-## Load libraries
-```{r}
-library("Seurat")
 library("Matrix")
 library("ggplot2")
-library("pheatmap")
-load("./../data/BlueYellowColormaps_V1.RData")
-# R version 3.6.3, Seurat_3.2.3, Matrix_1.3-2, ggplot_2_3.3.3, pheatmap_1.0.12 
+# R version 3.6.3, Matrix_1.3-2, ggplot_2_3.3.3
 ```
 
-## Load seurat objects containing barcodes retained by EmptyNN or CellRanger 2.0
-```{r}
-pbmc8k_retained <- readRDS("./../data/pbmc_8k_retained.rds")
-neuron900_retained <- readRDS("./../data/neuron900_retained.rds")
-```
-
-## Define functions: runSeurat() and plot_heatmap()
-```{r}
-runSeurat <- function(seu,RNA.thres,mt.thres,resolution,verbose){
-        seu[["percent.mt"]] <- PercentageFeatureSet(seu, pattern = "^MT|^mt")
-        seu <- subset(seu, subset = nFeature_RNA > RNA.thres &
-                              percent.mt < mt.thres)
-        seu <- NormalizeData(seu,verbose = verbose)
-        seu <- FindVariableFeatures(seu,verbose = verbose)
-        seu <- ScaleData(seu, features = VariableFeatures(seu),verbose = verbose)
-        seu <- RunPCA(seu,features=VariableFeatures(seu),verbose = verbose)
-        seu <- FindNeighbors(seu, dims = 1:10,verbose = verbose)
-        seu <- FindClusters(seu, resolution = resolution,verbose = verbose)
-        seu <- RunTSNE(seu, dims = 1:10, check_duplicates = verbose,verbose = verbose)
-        return(seu)
-}
-plot_heatmap <- function(seu,n_top,title){
-        seu <- seu[-grep("^RPL|^RPS|^MT|^Rps|^Rpl|^mt", rownames(seu)),]
-        des <- FindAllMarkers(seu, only.pos = TRUE, min.pct = 0.25, 
-                              logfc.threshold = 0.25,verbose=FALSE)
-        asplit_genes <- split(1:nrow(des), des$cluster)
-        # take top n genes 
-        genes <- unlist(lapply(asplit_genes, function(x) des[x[1:n_top], "gene"]))
-        # Average cells within each cluster
-        asplit_cells <- split(rownames(seu@meta.data), seu@active.ident)
-        means <- do.call(cbind, lapply(asplit_cells, function(x){
-        s1 <- Matrix::rowMeans(seu@assays$RNA@data[genes, sample(unlist(x), 10)])
-        s2 <- Matrix::rowMeans(seu@assays$RNA@data[genes, sample(unlist(x), 10)])
-        s3 <- Matrix::rowMeans(seu@assays$RNA@data[genes, sample(unlist(x), 10)])
-        cbind(s1, s2, s3)
-}))
-        cell_type <- unlist(lapply(names(asplit_cells), function(x) rep(x, 3)))
-        # Create heatmap (sample 3 "replicates")
-        anno_col <- data.frame(cell_type)
-        rownames(anno_col) <- colnames(means) <- paste(colnames(means), cell_type)
-        pheatmap(means,cluster_rows = F, cluster_cols = F, scale = "row",
-                 breaks = seq(-2, 2, length = length(yellow2blue) + 1), col = yellow2blue,
-                 annotation_col = anno_col,show_colnames = F,main=title)
-}
+## Load data
+```{r include=TRUE}
+raw_counts <- readRDS("../data/mouse_nuclei_2k_raw.rds")
+retained <- readRDS("../data/mouse_nuclei_retained.rds")
 ```
 
 ## Figure 4A
-```{r}
-cellranger <- pbmc8k_retained[,pbmc8k_retained$cellranger]
-cellranger_cutoff <- min(cellranger$nCount_RNA)
-recovered_bcs <- pbmc8k_retained$nCount_RNA < cellranger_cutoff & pbmc8k_retained$emptynn
-recover <- pbmc8k_retained[,recovered_bcs]
-recover <- runSeurat(recover,RNA.thres=200,mt.thres=10,
-                     resolution=0.1,verbose=FALSE)
-new.cluster <- c("CD4","CD14 Mono","Platelet")
-names(new.cluster) <- levels(recover)
-recover <- RenameIdents(recover,new.cluster)
-DimPlot(recover,label=T)+NoLegend()+labs(title="PBMC_8k_dataset_recovered")
+```{r include=TRUE}
+# Define ambient RNA sigature ####
+n_counts <- colSums(raw_counts)
+p_set <- names(n_counts[n_counts<100 & n_counts>10])
+p_set <- sample(p_set,2000)
+p_set <- raw_counts[,p_set]
+freq <- apply(p_set,1,function(x) sum(x>0))
+ambient <- names(freq)[tail(order(freq),100)]
+# EmptyNN
+df <- retained@reductions$tsne@cell.embeddings
+amb <- ambient[ambient %in% rownames(retained)]
+ambient_expr <- colSums(retained@assays$RNA@counts[amb,])
+df <- data.frame(df,"ambient_expr"=ambient_expr,retained@meta.data)
+df$method <- "Both"
+df$method[df$emptynn & !df$cellrangerv3] <- "EmptyNN"
+df$method[!df$emptynn & df$cellrangerv3] <- "CellRanger_v3"
+df1 <- df
+df1$ambient_expr[df1$method!='EmptyNN'] <- 0
+df1$method2 <- "EmptyNN"
+df2 <- df
+df2$ambient_expr[df2$method!='CellRanger_v3'] <- 0
+df2$method2 <- "CellRanger_v3"
+tmp <- rbind(df1,df2)
+ggplot(tmp,aes(tSNE_1,tSNE_2,color=log(ambient_expr+1)))+facet_wrap(~method2)+
+    geom_point(aes(alpha=log(ambient_expr+1)))+theme_bw()+
+    scale_color_gradient2(low="grey",mid="lightblue",high="darkblue",midpoint = 3)+
+    ggtitle("Ambient RNA Expression")
 ```
 
 # Figure 4B
-```{r}
-plot_heatmap(recover,n_top=20,"PBMC_8k_dataset_recovered")
+```{r include=TRUE}
+# sliced ratio ####
+spliced <- t(read.delim("../data/spliced.csv",sep="\t",header = T,row.names = 1))
+unspliced <- t(read.delim("../data/unspliced.csv",sep="\t",header = T,row.names = 1))
+s <- colSums(spliced)
+u <- colSums(unspliced)
+p <- data.frame(s,u)
+rownames(p) <- gsub("possorted_genome_bam_HWVYF:","",colnames(spliced))
+rownames(p) <- gsub("x","-1",rownames(p))
+p$pcentage <- apply(p,1,function(x){x[1]/sum(x)})
+
+retained$spliced_ratio <- p[match(colnames(retained),rownames(p)),'pcentage']
+
+df <- retained@reductions$tsne@cell.embeddings
+df <- data.frame(df,retained@meta.data)
+df$method <- "Both"
+df$method[df$emptynn & !df$cellrangerv3] <- "EmptyNN"
+df$method[!df$emptynn & df$cellrangerv3] <- "cellRangerv3"
+df1 <- df
+df1$spliced_ratio[df1$method!='EmptyNN'] <- 0
+df1$method2 <- "EmptyNN"
+df2 <- df
+df2$spliced_ratio[df2$method!='cellRangerv3'] <- 0
+df2$method2 <- "cellRangerv3"
+tmp <- rbind(df1,df2)
+ggplot(tmp,aes(tSNE_1,tSNE_2,color=spliced_ratio))+facet_wrap(~method2)+
+  geom_point(aes(alpha=spliced_ratio))+theme_bw()+
+  scale_color_gradient2(low="grey",mid="lightblue",high="darkblue",midpoint = 0.25)+
+  ggtitle("Percentage spliced reads")
 ```
 
 # Figure 4C
-```{r}
-cellranger <- neuron900_retained[,neuron900_retained$cellranger]
-cellranger_cutoff <- min(cellranger$nCount_RNA)
-recovered_bcs <- neuron900_retained$nCount_RNA < cellranger_cutoff & neuron900_retained$emptynn
-recover <- neuron900_retained[,recovered_bcs]
-recover <- runSeurat(recover,RNA.thres=200,mt.thres=20,
-                     resolution=0.1,verbose=FALSE)
-new.cluster <- c("Non-Neuronal","Non-Neuronal","Glutamatergic","GABAergic","GABAergic")
-names(new.cluster) <- levels(recover)
-recover <- RenameIdents(recover,new.cluster)
-DimPlot(recover,label=T)+NoLegend()+labs(title="Neuron_900_dataset_recovered")
+```{r include=TRUE}
+a <- retained[,retained$emptynn]$spliced_ratio
+df1 <- data.frame("expr"=a,"method"='EmptyNN')
+b <- retained[,retained$cellrangerv3]$spliced_ratio
+df2 <- data.frame("expr"=b,"method"='CellRanger_v3')
+c <- retained[,retained$cellbender]$spliced_ratio
+df3 <- data.frame("expr"=c,"method"='CellBender')
+d <- retained[,retained$emptydrops]$spliced_ratio
+df4 <- data.frame("expr"=d,"method"='EmptyDrops')
+e <- retained[,retained$cellrangerv2]$spliced_ratio
+df5 <- data.frame("expr"=b,"method"='CellRanger_v2')
+tmp <- rbind(df1,df2,df3,df4,df5)
+#ecdf plot
+ggplot(tmp, aes(x=expr, colour=method,linetype=method),size=5) +
+  xlab("Spliced/Total ratio")+theme_bw()+
+  stat_ecdf()+ylab("Percentile")
+
+ggplot(tmp, aes(x=expr, colour=method,linetype=method),size=5) +
+  xlab("Spliced/Total ratio")+theme_bw()+
+  stat_ecdf()+ylab("Percentile")+
+  coord_cartesian(xlim=c(0.25,0.5),ylim=c(0.75,1))
 ```
 
-# Figure 4D
-```{r}
-plot_heatmap(recover,n_top=5,"Neuron_900_dataset_recovered")
-```
 
