@@ -7,6 +7,11 @@ EmptyNN is a novel **cell-calling algorithm** based on **Positive-unlabeled (PU)
 
 **Workflow**. EmptyNN leverages positive unlabeled learning to classify cell-free and cell-containing droplets. (a) Cells and barcodes are combined in oil droplets. Some droplets may lack a cell but contain ambient RNA. The EmptyNN classifier distinguishes cell-free from cell-containing droplets. (b) Schematic describes the workflow of EmptyNN. The black curve represents the distribution of total counts (y-axis) across sorted barcodes (x-axis). The blue bar represents sets of barcodes with very low total counts, set *P*. The grey bar represents barcodes with higher total counts consisting of cell-containing and cell-free droplets, set *U*. EmptyNN trains a classifier, where barcodes from *P* are labeled as cell-free droplets (blue) and a fraction of barcodes from *U* is labeled as cell-containing droplets (pink). The classifier is applied to the remaining barcodes in *U* and the predictions are recorded. During each *k* fold, each barcode in *U* is predicted *k*-1 times. The above process is repeated for *N* iterations (default: 10). The average prediction probability of each barcode in *U* defines each barcode as a cell-free or cell-containing droplet. 
 
+**Animated workflow:**
+<p align="center">
+<img src="Summary_of_algorithm.gif">
+</p>
+
 ## Reproducibility
 To reproduce the analysis and figures presented in our manuscript please see the [*Reproducibility*](https://github.com/lkmklsmn/empty_nn/tree/master/Reproducibility) folder.
 
