@@ -58,7 +58,7 @@ library(EmptyNN)
 library(Seurat)
 
 # Load data
-counts <- Read10X_h5("./data/example_data.h5", use.names = TRUE, unique.features = TRUE)
+counts <- Read10X_h5("./data/neurons_900_raw.h5", use.names = TRUE, unique.features = TRUE)
 
 # Run emptynn()
 nn.res <- emptynn(counts, threshold = 100, k = 10, iteration = 10, verbose = TRUE)
