@@ -60,6 +60,9 @@ library(Seurat)
 # Load data
 counts <- Read10X_h5("./data/neurons_900_raw.h5", use.names = TRUE, unique.features = TRUE)
 
+# Transpose the count matrix, so rows are cells and columns are genes
+counts <- t(counts)
+
 # Run emptynn()
 nn.res <- emptynn(counts, threshold = 100, k = 10, iteration = 10, verbose = TRUE)
 
