@@ -5,7 +5,7 @@ function(counts,gene.use=FALSE,resolution){
         tmp <- tmp[-grep("^RPS", rownames(tmp)),]
         tmp <- tmp[-grep("^RPL", rownames(tmp)),]
         tmp <- NormalizeData(tmp)
-        tmp <- FindVariable
+        tmp <- FindVariableFeatures(tmp)
         if (!gene.use){
                 gene.use <- VariableFeatures(tmp)
         } else {
