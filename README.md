@@ -1,5 +1,5 @@
 # EmptyNN
-EmptyNN is a novel **cell-calling algorithm** based on **Positive-unlabeled (PU)** learning which **removes cell-free droplets and recovers lost cells** in droplet-based single cell RNA sequencing data. For more info please see our [EmptyNN preprint](https://www.biorxiv.org/content/10.1101/2021.01.15.426387v1).
+EmptyNN is a novel **cell-calling algorithm** based on **Positive-unlabeled (PU)** learning which **removes cell-free droplets and recovers lost cells** in droplet-based single cell RNA sequencing data. For more info please see our [EmptyNN paper](https://www.sciencedirect.com/science/article/pii/S2666389921001549).
 
 <p align="center">
 <img src="Figure 1.png">
